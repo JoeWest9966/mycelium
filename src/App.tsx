@@ -3,6 +3,7 @@ import { ApiError, b64Bytes, createExec, getMeta, listHosts, streamExec } from '
 import type { ExecEvent, Host, Meta } from './api/types'
 import HostList from './components/HostList'
 import RunPanel from './components/RunPanel'
+import WarehouseView from './components/WarehouseView'
 
 export type JobState = {
   jobId: string
@@ -29,6 +30,7 @@ export default function App() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [runs, setRuns] = useState<Run[]>([])
   const [busy, setBusy] = useState(false)
+  const [view, setView] = useState<'fleet' | 'warehouse'>('fleet')
 
   // One decoder per job: a multi-byte UTF-8 character can be split across two
   // SSE chunks, and decoding each chunk independently would corrupt it.
@@ -209,6 +211,22 @@ export default function App() {
           </span>
         </div>
         <div className="topbar-right">
+          <nav className="nav" aria-label="View">
+            <button
+              className={`nav-btn${view === 'fleet' ? ' active' : ''}`}
+              aria-current={view === 'fleet' ? 'page' : undefined}
+              onClick={() => setView('fleet')}
+            >
+              Fleet
+            </button>
+            <button
+              className={`nav-btn${view === 'warehouse' ? ' active' : ''}`}
+              aria-current={view === 'warehouse' ? 'page' : undefined}
+              onClick={() => setView('warehouse')}
+            >
+              Warehouse
+            </button>
+          </nav>
           <span className="dim mono">
             hypha {meta.version} · api v{meta.api_version}
           </span>
@@ -218,14 +236,20 @@ export default function App() {
         </div>
       </header>
 
-      <main className="layout">
-        <HostList
-          hosts={hosts}
-          selected={selected}
-          onToggle={toggle}
-          onToggleAll={toggleAll}
-        />
-        <RunPanel runs={runs} busy={busy} hasSelection={selected.size > 0} onRun={run} />
+      <main className={view === 'fleet' ? 'layout' : 'layout single'}>
+        {view === 'fleet' ? (
+          <>
+            <HostList
+              hosts={hosts}
+              selected={selected}
+              onToggle={toggle}
+              onToggleAll={toggleAll}
+            />
+            <RunPanel runs={runs} busy={busy} hasSelection={selected.size > 0} onRun={run} />
+          </>
+        ) : (
+          <WarehouseView hosts={hosts} />
+        )}
       </main>
     </div>
   )

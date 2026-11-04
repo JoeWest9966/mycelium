@@ -94,13 +94,61 @@ strands browsers on an old shell pointing at asset names that no longer exist.
 Alternatively, point the hub's `static_dir` at `dist/` and skip nginx entirely.
 hyphad serves a bundle from anywhere; it just doesn't own one.
 
+## The warehouse catalog
+
+`Warehouse` in the top nav lists machines from the Nous warehouse (which proxies
+`nw-panel` and ultimately `/opt/Data-001/vps/vps.json`). It is a **second,
+external contract** — schema `vq0f03/vps-ls.v1` — not part of hypha's OpenAPI
+file, so its types live alone in `src/api/warehouse.ts` and every field is
+treated as optional at the point of use.
+
+The panel never hardcodes that deployment. It asks for one path:
+
+```
+GET /api/warehouse/vps
+```
+
+Whatever answers it wins. Dev:
+
+```sh
+WAREHOUSE_API=http://100.106.43.81:4790/p/new1/vq0f03/api npm run dev
+```
+
+Production, in the same server block that serves this build:
+
+```nginx
+location /api/warehouse/ {
+    proxy_pass https://j1900.tail8d0018.ts.net:8443/;   # nw-panel
+    proxy_set_header Host $host;
+}
+```
+
+Keep this **above** `location /api/` or nginx hands the path to hyphad, which
+has no such route. And point it at the API, not at the panel's HTML: a wrong
+upstream usually answers `200 text/html`, which is why the client checks that
+the body is JSON and says so when it is not.
+
+### What this view deliberately does not do
+
+It does not install anything. The catalog read API hands out **commands**, not
+credentials — no password or key ever appears in the payload, and the machine
+rows carry a ready-to-paste `ssh -p …` string instead. There is no button here
+that pretends otherwise.
+
+`in fleet` is inferred, not recorded: a warehouse machine counts as enrolled when
+a hypha host reports the same hostname or carries the name as a tag. That guess
+is wrong for a machine whose hostname differs from its catalog name; enrolling
+with `wh:<name>` tags makes it exact.
+
 ## Scope
 
 Working: hub handshake with version gate, fleet list with tags and load, fan-out
-exec with live stdout/stderr, exit codes, 20-run history in memory.
+exec with live stdout/stderr, exit codes, 20-run history in memory, read-only
+warehouse catalog with copyable ssh commands and fleet membership.
 
-Not yet: interactive shells (xterm.js over `/api/pty`), install-key management,
-host removal, tags editing, the warehouse installer.
+Not yet: interactive shells (xterm.js over `/api/pty`), install-key management
+(one-shot and reusable keys, revoke), host removal, tags editing, one-click
+install from the warehouse.
 
 ## License
 
