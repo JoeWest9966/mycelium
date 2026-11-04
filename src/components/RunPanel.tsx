@@ -6,9 +6,10 @@ type Props = {
   busy: boolean
   hasSelection: boolean
   onRun: (command: string) => void
+  onCancel: (execId: string) => void
 }
 
-export default function RunPanel({ runs, busy, hasSelection, onRun }: Props) {
+export default function RunPanel({ runs, busy, hasSelection, onRun, onCancel }: Props) {
   const [command, setCommand] = useState('')
 
   const submit = () => {
@@ -16,6 +17,11 @@ export default function RunPanel({ runs, busy, hasSelection, onRun }: Props) {
     onRun(command)
     setCommand('')
   }
+
+  // A run is cancellable while any of its jobs is still in flight. Once every
+  // host reported, the button is noise.
+  const isLive = (r: Run) =>
+    !r.cancelled && r.jobs.some((j) => j.status === 'running' || j.status === 'pending')
 
   return (
     <section className="panel" aria-label="Run command">
@@ -48,6 +54,12 @@ export default function RunPanel({ runs, busy, hasSelection, onRun }: Props) {
           <div className="run" key={run.execId}>
             <div className="run-head">
               <span className="mono cmd">$ {run.command}</span>
+              {run.cancelled && <span className="pill fail">cancelled</span>}
+              {isLive(run) && (
+                <button className="btn btn-small btn-ghost" onClick={() => onCancel(run.execId)}>
+                  Cancel
+                </button>
+              )}
             </div>
             {run.jobs.map((job) => (
               <div className="job" key={job.jobId}>

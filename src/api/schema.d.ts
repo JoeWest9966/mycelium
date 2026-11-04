@@ -185,6 +185,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/exec/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Kill a running command
+         * @description Sends SIGTERM to the whole process group on every host that is still
+         *     running this exec, then SIGKILL 5 seconds later if it has not exited.
+         *     Hosts that already finished are reported as not cancelled, not as an
+         *     error — cancelling a finished run is a no-op, not a failure.
+         */
+        post: operations["cancelExec"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/execs": {
         parameters: {
             query?: never;
@@ -205,6 +228,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write a file on selected hosts
+         * @description Contents are base64 in the request and are written atomically on the
+         *     agent (temp file in the same directory, then rename), so a truncated
+         *     upload can never leave a half-written file in place.
+         *
+         *     The call blocks until every online agent acknowledges or the deadline
+         *     passes; offline hosts come back with `ok: false` and `error: offline`
+         *     rather than being silently skipped.
+         */
+        post: operations["pushFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit trail
+         * @description Newest first. Every state change the hub performs lands here:
+         *     `host.enroll`, `host.tags`, `host.delete`, `enroll.token.revoke`,
+         *     `exec`, `file.push`, `pty.open`.
+         *
+         *     This is the only place that answers "who ran what on which machine last
+         *     week", so it is stored in SQLite and never pruned by the hub.
+         */
+        get: operations["listAudit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pty": {
         parameters: {
             query?: never;
@@ -216,18 +290,32 @@ export interface paths {
          * Interactive shell (WebSocket)
          * @description WebSocket upgrade. Frames are JSON in both directions.
          *
-         *     Client → hub is `TermIn`. Hub → client is `TermOut`. Note the asymmetry:
-         *     `TermIn.input.data` is a plain UTF-8 string (what the human typed), while
-         *     `TermOut.output.data` is base64 of raw terminal bytes (which are not
-         *     valid UTF-8 in general). Getting that backwards produces a garbled or
-         *     empty terminal.
+         *     Attach with `pty_id` (created by `POST /api/pty`) or with `host_id`,
+         *     which creates a throwaway session and attaches in one step — that is the
+         *     legacy shape and still works, it just cannot survive a disconnect.
+         *
+         *     Note the encoding asymmetry: `TermIn.input.data` is a plain UTF-8 string
+         *     (what the human typed), while `TermOut.output.data` is base64 of raw
+         *     terminal bytes (which are not valid UTF-8 in general). Getting that
+         *     backwards produces a garbled or empty terminal.
          *
          *     The hub closes the socket with a normal close frame when the shell
          *     exits; `TermOut.exit` carries the code.
          */
         get: operations["pty"];
         put?: never;
-        post?: never;
+        /**
+         * Open a shell session
+         * @description Allocates a pty session and asks the agent to spawn the shell, then
+         *     returns at once with the session id. Attach with `GET /api/pty?pty_id=`.
+         *     Splitting create from attach is what makes a shell survivable: a dropped
+         *     WebSocket (tab reload, laptop lid, flaky wifi) detaches the client but
+         *     leaves the session running on the agent, so reattaching replays the
+         *     scrollback and carries on in the same shell.
+         *
+         *     Sessions are reaped `pty_ttl_sec` (default 600) after the last detach.
+         */
+        post: operations["openPty"];
         delete?: never;
         options?: never;
         head?: never;
@@ -367,6 +455,11 @@ export interface components {
              * @description Agent-reported load average; 0 when offline.
              */
             load: number;
+            /**
+             * @description Latest agent report; absent when the host has never reported, which
+             *     includes every host that is offline.
+             */
+            metrics?: components["schemas"]["HostMetrics"];
         };
         EnrollRequest: {
             /** @description Enrollment token from the install command. */
@@ -479,6 +572,115 @@ export interface components {
             hosts: string;
             /** Format: int64 */
             created_at: number;
+            /**
+             * @description True while the hub still holds this run in memory. A finished run
+             *     with `live: false` is still replayable from SQLite — that is the
+             *     whole point of keeping it.
+             */
+            live?: boolean;
+        };
+        AuditEntry: {
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int64
+             * @description Unix seconds.
+             */
+            ts: number;
+            /** @description Always `admin`: the hub has no identities, the network is the boundary. */
+            actor: string;
+            /** @description `host.enroll` / `host.tags` / `host.delete` / `enroll.token.revoke` / `exec` / `file.push` / `pty.open`. */
+            action: string;
+            /** @description Host id or hostname; empty when the action is fleet-wide. */
+            host: string;
+            /** @description Human-readable specifics (the command, the tag list, the token label). */
+            detail: string;
+        };
+        ExecCancelResponse: {
+            /** @description Host ids that were still running and got signalled. */
+            cancelled: string[];
+        };
+        /**
+         * @description There is no size limit in the contract and none in the hub, but the
+         *     file travels as one JSON frame over the agent socket, so anything past a
+         *     few megabytes is a bad idea and will be slow.
+         */
+        FilePushRequest: {
+            targets: components["schemas"]["Targets"];
+            /** @description Absolute path on the agent. */
+            path: string;
+            /** @description Optional unix mode, defaults to 0644 (given in decimal). */
+            mode?: number;
+            /** @description base64 of the file bytes. */
+            content: string;
+        };
+        FilePushResponse: {
+            results: components["schemas"]["FilePushResult"][];
+        };
+        FilePushResult: {
+            host_id: string;
+            hostname: string;
+            ok: boolean;
+            /** @description Bytes written; 0 on failure. */
+            bytes?: number;
+            /** @description Present when `ok` is false. */
+            error?: string;
+        };
+        /**
+         * @description Best-effort, Linux-only. Fields the agent could not read are 0 rather
+         *     than absent, so a dashboard can render without null checks.
+         */
+        HostMetrics: {
+            /**
+             * Format: float
+             * @description Busy fraction over the last report interval, 0-100.
+             */
+            cpu_pct?: number;
+            /**
+             * Format: int64
+             * @description Bytes.
+             */
+            mem_used?: number;
+            /**
+             * Format: int64
+             * @description Bytes.
+             */
+            mem_total?: number;
+            /**
+             * Format: int64
+             * @description Bytes used on `/`.
+             */
+            disk_used?: number;
+            /**
+             * Format: int64
+             * @description Bytes total on `/`.
+             */
+            disk_total?: number;
+            /** @description Runnable process count. */
+            procs?: number;
+            /** Format: int64 */
+            uptime_sec?: number;
+            /**
+             * Format: int64
+             * @description Unix seconds.
+             */
+            collected_at?: number;
+        };
+        PtyOpenRequest: {
+            host_id: string;
+            /** @description Optional, defaults to 80. */
+            cols?: number;
+            /** @description Optional, defaults to 24. */
+            rows?: number;
+        };
+        PtySession: {
+            pty_id: string;
+            host_id: string;
+            hostname: string;
+            cols: number;
+            rows: number;
+            /** @description True while a WebSocket client is connected. */
+            attached: boolean;
         };
         ExecEvent: components["schemas"]["ExecStarted"] | components["schemas"]["ExecOutput"] | components["schemas"]["ExecExit"] | components["schemas"]["ExecFailed"] | components["schemas"]["ExecDone"];
         ExecStarted: {
@@ -849,6 +1051,37 @@ export interface operations {
             };
         };
     };
+    cancelExec: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Which hosts were signalled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecCancelResponse"];
+                };
+            };
+            /** @description Unknown exec id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
     recentExecs: {
         parameters: {
             query?: never;
@@ -869,9 +1102,71 @@ export interface operations {
             };
         };
     };
+    pushFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FilePushRequest"];
+            };
+        };
+        responses: {
+            /** @description Per-host results */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FilePushResponse"];
+                };
+            };
+            /** @description Empty path, bad base64, or no host matched */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listAudit: {
+        parameters: {
+            query?: {
+                /** @description Optional; defaults to 100, capped at 1000. */
+                limit?: number;
+                /** @description Optional exact match, e.g. `exec`. */
+                action?: string;
+                /** @description Optional exact match on the host id or hostname. */
+                host?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audit entries, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEntry"][];
+                };
+            };
+        };
+    };
     pty: {
         parameters: {
             query: {
+                /** @description Attach to an existing session. Mutually exclusive with `host_id`. */
+                pty_id?: string;
                 host_id: string;
                 /** @description Optional, defaults to 80. */
                 cols?: number;
@@ -890,6 +1185,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Missing host_id, or the host is not connected */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    openPty: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PtyOpenRequest"];
+            };
+        };
+        responses: {
+            /** @description Session created */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PtySession"];
+                };
             };
             /** @description Missing host_id, or the host is not connected */
             400: {

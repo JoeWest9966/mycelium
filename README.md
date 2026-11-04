@@ -51,6 +51,10 @@ Three hazards the types cannot catch, all encoded in `src/api/client.ts`:
 - **The PTY direction flips the encoding.** `TermIn.input.data` is plain UTF-8
   keystrokes; `TermOut.output.data` is base64 of raw terminal bytes. Output goes
   into xterm as a byte array, never as a decoded string.
+- **A shell is a session, not a socket.** `POST /api/pty` allocates it and
+  `GET /api/pty?pty_id=` attaches. Closing the socket detaches; attaching again
+  replays the scrollback. Treating the WebSocket as the shell would kill `vim`
+  on every reload.
 
 The panel refuses to boot when the hub reports an `api_version` it does not know:
 
@@ -155,14 +159,18 @@ with `wh:<name>` tags makes it exact.
 
 ## Scope
 
-Working: hub handshake with version gate, fleet list with tags and load, fan-out
-exec with live stdout/stderr, exit codes, 20-run history in memory, interactive
-shells (xterm over `/api/pty`), install-key management (one-shot and reusable
-keys, copy, revoke), host removal with a two-click confirm, inline tag editing,
-read-only warehouse catalog with copyable ssh commands and fleet membership.
+Working: hub handshake with version gate, fleet list with live cpu/mem/disk
+meters and a details panel, fan-out exec with live stdout/stderr and a cancel
+button, interactive shells that survive a reload (the hub keeps the session, a
+reattach replays the scrollback), install-key management, host removal with a
+two-click confirm, inline tag editing, atomic file push, the audit trail, and a
+read-only warehouse catalog with copyable ssh commands.
 
-Not yet: one-click install from the warehouse (the catalog API hands out
-commands, not credentials), file transfer, session reattach by id, metrics.
+Presence polls every 5s while the tab is visible, because a stale "online" is
+worse than no status at all.
+
+Not yet: one-click install from the warehouse (the catalog hands out commands,
+not credentials — see hypha #271), scheduled jobs, per-host arguments.
 
 ## License
 

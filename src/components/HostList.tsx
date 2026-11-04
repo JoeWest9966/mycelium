@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Host } from '../api/types'
+import type { Host, HostMetrics } from '../api/types'
 
 type Props = {
   hosts: Host[]
@@ -76,6 +76,7 @@ function HostRow({
 }) {
   const [editingTags, setEditingTags] = useState<string | null>(null)
   const [armed, setArmed] = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   const commitTags = () => {
     if (editingTags === null) return
@@ -103,12 +104,23 @@ function HostRow({
       <span className={`dot${host.online ? ' on' : ''}`} aria-hidden="true" />
 
       <div className="host-main">
-        <div className="host-name">{host.hostname}</div>
+        <button
+          className="host-name"
+          onClick={(e) => {
+            e.stopPropagation()
+            setExpanded((v) => !v)
+          }}
+          title={expanded ? 'hide details' : 'show details'}
+        >
+          {host.hostname}
+        </button>
         <div className="host-meta dim">
           {host.os} {host.arch}
           {host.version && ` · v${host.version}`}
           {host.online && host.load > 0 && ` · load ${host.load.toFixed(2)}`}
         </div>
+        {host.metrics && <MetricBars m={host.metrics} />}
+        {expanded && <HostDetail host={host} />}
       </div>
 
       <div className="host-actions" onClick={(e) => e.stopPropagation()}>
@@ -170,5 +182,60 @@ function HostRow({
         </button>
       </div>
     </div>
+  )
+}
+
+/** Three thin bars: cpu, memory, root disk. Values are 0-100, so a missing
+ *  metric reads as an empty bar rather than "unknown" chrome. */
+function MetricBars({ m }: { m: HostMetrics }) {
+  const mem = m.mem_total && m.mem_used ? (m.mem_used / m.mem_total) * 100 : 0
+  const disk = m.disk_total && m.disk_used ? (m.disk_used / m.disk_total) * 100 : 0
+  const rows: [string, number][] = [
+    ['cpu', m.cpu_pct ?? 0],
+    ['mem', mem],
+    ['disk', disk],
+  ]
+  return (
+    <div className="metric-bars">
+      {rows.map(([label, pct]) => (
+        <span className="metric" key={label} title={`${label} ${pct.toFixed(0)}%`}>
+          <span className="metric-label dim">{label}</span>
+          <span className="metric-track">
+            <span
+              className={`metric-fill${pct > 90 ? ' hot' : pct > 70 ? ' warm' : ''}`}
+              style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+            />
+          </span>
+          <span className="metric-value dim">{pct.toFixed(0)}%</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function HostDetail({ host }: { host: Host }) {
+  const m = host.metrics
+  const gb = (n: number) => `${(n / 1024 ** 3).toFixed(1)} GB`
+  const rows: [string, string][] = [
+    ['id', host.id],
+    ['os', `${host.os} ${host.arch}`],
+    ['agent', host.version || '—'],
+    ['enrolled', new Date(host.created_at * 1000).toLocaleString()],
+    ['last seen', host.online ? 'now' : new Date(host.last_seen * 1000).toLocaleString()],
+    ['load', host.load > 0 ? host.load.toFixed(2) : '—'],
+    ['memory', m?.mem_total ? `${gb(m.mem_used ?? 0)} / ${gb(m.mem_total)}` : '—'],
+    ['disk /', m?.disk_total ? `${gb(m.disk_used ?? 0)} / ${gb(m.disk_total)}` : '—'],
+    ['procs', m ? String(m.procs) : '—'],
+    ['uptime', m && m.uptime_sec ? `${(m.uptime_sec / 86400).toFixed(1)} days` : '—'],
+  ]
+  return (
+    <dl className="host-detail">
+      {rows.map(([k, v]) => (
+        <div className="host-detail-row" key={k}>
+          <dt className="dim">{k}</dt>
+          <dd className="mono">{v}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }

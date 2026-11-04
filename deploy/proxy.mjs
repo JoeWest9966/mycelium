@@ -90,7 +90,15 @@ function proxy(req, res) {
       port: target.port,
       path: (target.prefix ?? '') + (target.strip ? url.pathname.replace(target.strip, '') : url.pathname) + url.search,
       method: req.method,
-      headers: { ...req.headers, host: `${target.host}:${target.port}` },
+      headers: {
+        ...req.headers,
+        host: `${target.host}:${target.port}`,
+        // Keep the address the browser used. hyphad builds install commands from
+        // it, and without this every command would be minted for 127.0.0.1:5599 —
+        // an address that exists only on this box.
+        'x-forwarded-host': req.headers.host ?? `${target.host}:${target.port}`,
+        'x-forwarded-proto': req.socket.encrypted ? 'https' : 'http',
+      },
     },
     (upRes) => {
       res.writeHead(upRes.statusCode ?? 502, upRes.headers)
@@ -160,7 +168,11 @@ server.on('upgrade', (req, socket, head) => {
     return
   }
   const up = net.connect(target.port, target.host, () => {
-    const headers = Object.entries({ ...req.headers, host: `${target.host}:${target.port}` })
+    const headers = Object.entries({
+      ...req.headers,
+      host: `${target.host}:${target.port}`,
+      'x-forwarded-host': req.headers.host ?? `${target.host}:${target.port}`,
+    })
       .map(([k, v]) => `${k}: ${v}`)
       .join('\r\n')
     const wsPath = (target.prefix ?? '') + (target.strip ? url.pathname.replace(target.strip, '') : url.pathname) + url.search

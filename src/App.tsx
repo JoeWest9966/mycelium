@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ApiError,
   b64Bytes,
+  cancelExec,
   createExec,
   deleteHost,
   getMeta,
@@ -14,7 +15,9 @@ import HostList from './components/HostList'
 import RunPanel from './components/RunPanel'
 import WarehouseView from './components/WarehouseView'
 import KeysView from './components/KeysView'
-import TerminalView from './components/TerminalView'
+import AuditView from './components/AuditView'
+import FilesView from './components/FilesView'
+import { TerminalView } from './components/TerminalView'
 
 export type JobState = {
   jobId: string
@@ -32,6 +35,7 @@ export type Run = {
   execId: string
   command: string
   jobs: JobState[]
+  cancelled?: boolean
 }
 
 export default function App() {
@@ -41,7 +45,7 @@ export default function App() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [runs, setRuns] = useState<Run[]>([])
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState<'fleet' | 'warehouse' | 'keys'>('fleet')
+  const [view, setView] = useState<'fleet' | 'warehouse' | 'keys' | 'files' | 'audit'>('fleet')
   const [shellHost, setShellHost] = useState<Host | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -76,6 +80,15 @@ export default function App() {
     return () => {
       cancelled = true
     }
+  }, [refresh])
+
+  // Presence has to age out on its own: a host that died two minutes ago
+  // should not keep looking alive because nobody clicked Refresh.
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (document.visibilityState === 'visible') void refresh()
+    }, 5000)
+    return () => clearInterval(iv)
   }, [refresh])
 
   useEffect(() => {
@@ -114,6 +127,16 @@ export default function App() {
       })
       notify(`${host.hostname} removed`)
       await refresh()
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : String(err))
+    }
+  }
+
+  const cancelRun = async (execId: string) => {
+    try {
+      const res = await cancelExec(execId)
+      setRuns((prev) => prev.map((r) => (r.execId === execId ? { ...r, cancelled: true } : r)))
+      notify(res.cancelled.length > 0 ? `cancel sent to ${res.cancelled.length}` : 'run already finished')
     } catch (err) {
       notify(err instanceof ApiError ? err.message : String(err))
     }
@@ -270,11 +293,25 @@ export default function App() {
               Warehouse
             </button>
             <button
+              className={`nav-btn${view === 'files' ? ' active' : ''}`}
+              aria-current={view === 'files' ? 'page' : undefined}
+              onClick={() => setView('files')}
+            >
+              Files
+            </button>
+            <button
               className={`nav-btn${view === 'keys' ? ' active' : ''}`}
               aria-current={view === 'keys' ? 'page' : undefined}
               onClick={() => setView('keys')}
             >
               Install
+            </button>
+            <button
+              className={`nav-btn${view === 'audit' ? ' active' : ''}`}
+              aria-current={view === 'audit' ? 'page' : undefined}
+              onClick={() => setView('audit')}
+            >
+              Audit
             </button>
           </nav>
           <span className="dim mono">
@@ -298,11 +335,19 @@ export default function App() {
               onRemove={(h) => void removeHost(h)}
               onSaveTags={(h, tags) => void saveTags(h, tags)}
             />
-            <RunPanel runs={runs} busy={busy} hasSelection={selected.size > 0} onRun={run} />
+            <RunPanel
+              runs={runs}
+              busy={busy}
+              hasSelection={selected.size > 0}
+              onRun={run}
+              onCancel={(id) => void cancelRun(id)}
+            />
           </>
         )}
         {view === 'warehouse' && <WarehouseView hosts={hosts} />}
         {view === 'keys' && <KeysView />}
+        {view === 'files' && <FilesView hosts={hosts} selected={selected} />}
+        {view === 'audit' && <AuditView />}
       </main>
 
       {shellHost && <TerminalView host={shellHost} onClose={() => setShellHost(null)} />}

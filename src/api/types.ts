@@ -31,6 +31,12 @@ export type Targets = components['schemas']['Targets']
 export type TermIn = components['schemas']['TermIn']
 export type TermOut = components['schemas']['TermOut']
 export type ApiError = components['schemas']['ApiError']
+export type AuditEntry = components['schemas']['AuditEntry']
+export type FilePushRequest = components['schemas']['FilePushRequest']
+export type FilePushResponse = components['schemas']['FilePushResponse']
+export type FilePushResult = components['schemas']['FilePushResult']
+export type HostMetrics = components['schemas']['HostMetrics']
+export type PtySession = components['schemas']['PtySession']
 
 /**
  * The contract version this build understands.

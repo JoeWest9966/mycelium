@@ -10,8 +10,12 @@ import {
   type ExecRecord,
   type ExecRequest,
   type ExecResponse,
+  type AuditEntry,
+  type FilePushRequest,
+  type FilePushResponse,
   type Host,
   type Meta,
+  type PtySession,
 } from './types'
 
 export class ApiError extends Error {
@@ -97,6 +101,44 @@ export const revokeEnrollToken = (token: string) =>
 
 export const recentExecs = () => call<ExecRecord[]>('/api/execs')
 
+/** Kill a run. Hosts that already exited are simply not in the response. */
+export const cancelExec = (id: string) =>
+  call<{ cancelled: string[] }>(`/api/exec/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+
+export interface AuditQuery {
+  limit?: number
+  action?: string
+  host?: string
+}
+
+export const listAudit = (q: AuditQuery = {}) => {
+  const params = new URLSearchParams()
+  if (q.limit) params.set('limit', String(q.limit))
+  if (q.action) params.set('action', q.action)
+  if (q.host) params.set('host', q.host)
+  const qs = params.toString()
+  return call<AuditEntry[]>(`/api/audit${qs ? `?${qs}` : ''}`)
+}
+
+/**
+ * Push a file to hosts. `content` is base64; the browser has no other way to
+ * put bytes in JSON, and the agent writes it atomically.
+ */
+export const pushFile = (body: FilePushRequest) =>
+  call<FilePushResponse>('/api/files', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+/** Allocate a shell session. Attach with `ptyUrl({ ptyId })`. */
+export const openPty = (body: { host_id: string; cols?: number; rows?: number }) =>
+  call<PtySession>('/api/pty', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
 export const createExec = (body: ExecRequest) =>
   call<ExecResponse>('/api/exec', { method: 'POST', body: JSON.stringify(body) })
 
@@ -150,13 +192,24 @@ export function b64Text(data: string): string {
 }
 
 /**
- * WebSocket URL for a host's shell.
+ * WebSocket URL for a shell.
  *
  * `TermIn.input.data` is plain UTF-8; `TermOut.output.data` is base64. Mixing
  * those up produces a terminal that looks dead.
+ *
+ * Attach by `ptyId` when a session already exists (reconnect): the hub replays
+ * the scrollback and you land back in the same shell. Attach by `hostId` to get
+ * a throwaway session that dies with the socket.
  */
-export function ptyUrl(hostId: string, cols: number, rows: number): string {
+export function ptyUrl(target: { ptyId: string } | { hostId: string; cols: number; rows: number }): string {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const q = new URLSearchParams({ host_id: hostId, cols: String(cols), rows: String(rows) })
+  const q =
+    'ptyId' in target
+      ? new URLSearchParams({ pty_id: target.ptyId })
+      : new URLSearchParams({
+          host_id: target.hostId,
+          cols: String(target.cols),
+          rows: String(target.rows),
+        })
   return `${proto}//${location.host}/api/pty?${q}`
 }
