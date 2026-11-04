@@ -38,7 +38,7 @@ Nothing here hand-writes a response shape. `src/api/types.ts` re-exports from th
 generated schema, so a renamed field becomes a compile error instead of
 `undefined` rendered on screen.
 
-Two hazards the types cannot catch, both encoded in `src/api/client.ts`:
+Three hazards the types cannot catch, all encoded in `src/api/client.ts`:
 
 - **`ExecOutput.data` is base64 of raw bytes.** Casting it to a string corrupts
   everything that is not ASCII. `b64Text()` decodes via `Uint8Array` and a
@@ -48,6 +48,9 @@ Two hazards the types cannot catch, both encoded in `src/api/client.ts`:
   cursor 0 again on any new connection, so letting `EventSource` auto-reconnect
   after `done` re-delivers the entire run. `streamExec()` closes on `done` and on
   any error, for that reason.
+- **The PTY direction flips the encoding.** `TermIn.input.data` is plain UTF-8
+  keystrokes; `TermOut.output.data` is base64 of raw terminal bytes. Output goes
+  into xterm as a byte array, never as a decoded string.
 
 The panel refuses to boot when the hub reports an `api_version` it does not know:
 
@@ -153,12 +156,13 @@ with `wh:<name>` tags makes it exact.
 ## Scope
 
 Working: hub handshake with version gate, fleet list with tags and load, fan-out
-exec with live stdout/stderr, exit codes, 20-run history in memory, read-only
-warehouse catalog with copyable ssh commands and fleet membership.
+exec with live stdout/stderr, exit codes, 20-run history in memory, interactive
+shells (xterm over `/api/pty`), install-key management (one-shot and reusable
+keys, copy, revoke), host removal with a two-click confirm, inline tag editing,
+read-only warehouse catalog with copyable ssh commands and fleet membership.
 
-Not yet: interactive shells (xterm.js over `/api/pty`), install-key management
-(one-shot and reusable keys, revoke), host removal, tags editing, one-click
-install from the warehouse.
+Not yet: one-click install from the warehouse (the catalog API hands out
+commands, not credentials), file transfer, session reattach by id, metrics.
 
 ## License
 

@@ -12,6 +12,7 @@
 //   /api/warehouse/*  -> warehouse API   (external contract, optional)
 //   /api/*            -> hyphad          (streaming: SSE + websocket)
 //   /agent            -> hyphad          (satellites, in case you front it)
+//   /install.sh, /dl/ -> hyphad          (installer channel; not panel routes)
 //   everything else   -> dist/, SPA fallback to index.html
 
 import http from 'node:http'
@@ -42,7 +43,13 @@ const TYPES = {
 }
 
 const upstreamFor = (pathname) => {
-  if (pathname === '/agent') return { host: HUB.host, port: HUB.port, scheme: 'http' }
+  // The installer channel belongs to the hub, not to the static bundle. Miss
+  // this and /dl/hypha-sat-linux-x86_64 (no extension) gets the SPA fallback,
+  // so an install pipes HTML into sudo sh.
+  if (pathname === '/agent' || pathname === '/install.sh' || pathname === '/health') {
+    return { host: HUB.host, port: HUB.port, scheme: 'http' }
+  }
+  if (pathname.startsWith('/dl/')) return { host: HUB.host, port: HUB.port, scheme: 'http' }
   if (pathname.startsWith('/api/warehouse/')) {
     if (!WAREHOUSE) return null
     const u = new URL(WAREHOUSE)

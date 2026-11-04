@@ -1,9 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ApiError, b64Bytes, createExec, getMeta, listHosts, streamExec } from './api/client'
+import {
+  ApiError,
+  b64Bytes,
+  createExec,
+  deleteHost,
+  getMeta,
+  listHosts,
+  setHostTags,
+  streamExec,
+} from './api/client'
 import type { ExecEvent, Host, Meta } from './api/types'
 import HostList from './components/HostList'
 import RunPanel from './components/RunPanel'
 import WarehouseView from './components/WarehouseView'
+import KeysView from './components/KeysView'
+import TerminalView from './components/TerminalView'
 
 export type JobState = {
   jobId: string
@@ -30,7 +41,9 @@ export default function App() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [runs, setRuns] = useState<Run[]>([])
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState<'fleet' | 'warehouse'>('fleet')
+  const [view, setView] = useState<'fleet' | 'warehouse' | 'keys'>('fleet')
+  const [shellHost, setShellHost] = useState<Host | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   // One decoder per job: a multi-byte UTF-8 character can be split across two
   // SSE chunks, and decoding each chunk independently would corrupt it.
@@ -84,6 +97,36 @@ export default function App() {
 
   const toggleAll = () => {
     setSelected((prev) => (prev.size === hosts.length ? new Set() : new Set(hosts.map((h) => h.id))))
+  }
+
+  const notify = (message: string) => {
+    setToast(message)
+    setTimeout(() => setToast((t) => (t === message ? null : t)), 2200)
+  }
+
+  const removeHost = async (host: Host) => {
+    try {
+      await deleteHost(host.id)
+      setSelected((prev) => {
+        const next = new Set(prev)
+        next.delete(host.id)
+        return next
+      })
+      notify(`${host.hostname} removed`)
+      await refresh()
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : String(err))
+    }
+  }
+
+  const saveTags = async (host: Host, tags: string[]) => {
+    try {
+      await setHostTags(host.id, tags)
+      notify(`${host.hostname} tags saved`)
+      await refresh()
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : String(err))
+    }
   }
 
   const applyEvent = useCallback((execId: string, ev: ExecEvent) => {
@@ -226,6 +269,13 @@ export default function App() {
             >
               Warehouse
             </button>
+            <button
+              className={`nav-btn${view === 'keys' ? ' active' : ''}`}
+              aria-current={view === 'keys' ? 'page' : undefined}
+              onClick={() => setView('keys')}
+            >
+              Install
+            </button>
           </nav>
           <span className="dim mono">
             hypha {meta.version} · api v{meta.api_version}
@@ -237,20 +287,26 @@ export default function App() {
       </header>
 
       <main className={view === 'fleet' ? 'layout' : 'layout single'}>
-        {view === 'fleet' ? (
+        {view === 'fleet' && (
           <>
             <HostList
               hosts={hosts}
               selected={selected}
               onToggle={toggle}
               onToggleAll={toggleAll}
+              onShell={setShellHost}
+              onRemove={(h) => void removeHost(h)}
+              onSaveTags={(h, tags) => void saveTags(h, tags)}
             />
             <RunPanel runs={runs} busy={busy} hasSelection={selected.size > 0} onRun={run} />
           </>
-        ) : (
-          <WarehouseView hosts={hosts} />
         )}
+        {view === 'warehouse' && <WarehouseView hosts={hosts} />}
+        {view === 'keys' && <KeysView />}
       </main>
+
+      {shellHost && <TerminalView host={shellHost} onClose={() => setShellHost(null)} />}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   )
 }

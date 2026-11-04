@@ -406,13 +406,13 @@ export interface components {
             ttl_sec?: number;
             /** @description Tags applied to the host that enrolls with this key. */
             tags?: string[];
-            /** @default false */
-            reusable: boolean;
             /**
-             * @description Trimmed to 64 chars; defaults to `one-shot` or `reusable key`.
-             * @default
+             * @description Optional, defaults to false. Reusable keys are counted instead of
+             *     burned and live 30 days.
              */
-            label: string;
+            reusable?: boolean;
+            /** @description Optional, defaults to `one-shot` or `reusable key`. Trimmed to 64 chars. */
+            label?: string;
         };
         EnrollTokenResponse: {
             token: string;
@@ -445,12 +445,12 @@ export interface components {
          *     everything. Unions, not intersections.
          */
         Targets: {
-            /** @default [] */
-            hosts: string[];
-            /** @default [] */
-            tags: string[];
-            /** @default false */
-            all: boolean;
+            /** @description Optional; omitting it is the same as an empty list. */
+            hosts?: string[];
+            /** @description Optional; omitting it is the same as an empty list. */
+            tags?: string[];
+            /** @description Optional, defaults to false. */
+            all?: boolean;
         };
         ExecRequest: {
             targets?: components["schemas"]["Targets"];
@@ -873,7 +873,9 @@ export interface operations {
         parameters: {
             query: {
                 host_id: string;
+                /** @description Optional, defaults to 80. */
                 cols?: number;
+                /** @description Optional, defaults to 24. */
                 rows?: number;
             };
             header?: never;
