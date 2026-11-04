@@ -26,9 +26,13 @@ Fourteen paths is cheap to describe; forty is a negotiation.
 `src/api/schema.d.ts` is **generated** from the hub's OpenAPI file:
 
 ```sh
-npm run api:types     # openapi-typescript ../hypha/api/openapi.yaml
-npm run api:check     # fails when the committed types drift from the spec
+git clone https://github.com/JoeWest9966/hypha.git ../hypha
+npm run api:types     # regenerate from ../hypha/api/openapi.yaml
+npm run api:check     # fail when the committed types drift from the spec
 ```
+
+`HYPHA_DIR=/path/to/hypha` if the checkout lives elsewhere. Building never needs
+the spec — `src/api/schema.d.ts` is committed, so a clean clone builds offline.
 
 Nothing here hand-writes a response shape. `src/api/types.ts` re-exports from the
 generated schema, so a renamed field becomes a compile error instead of

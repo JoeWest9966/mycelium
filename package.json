@@ -3,14 +3,14 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Panel for hypha — a React client generated from the hub's OpenAPI contract",
+  "description": "Panel for hypha \u2014 a React client generated from the hub's OpenAPI contract",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "api:types": "openapi-typescript ../hypha/api/openapi.yaml -o src/api/schema.d.ts",
-    "api:check": "openapi-typescript ../hypha/api/openapi.yaml -o /tmp/mycelium-schema.d.ts && diff -q /tmp/mycelium-schema.d.ts src/api/schema.d.ts"
+    "api:types": "node scripts/gen-api.mjs",
+    "api:check": "node scripts/gen-api.mjs --check"
   },
   "dependencies": {
     "react": "^19.2.0",
