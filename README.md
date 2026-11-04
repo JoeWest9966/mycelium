@@ -91,8 +91,18 @@ The short version:
 `index.html` must be `no-store` and hashed assets `immutable`, or a deploy
 strands browsers on an old shell pointing at asset names that no longer exist.
 
-Alternatively, point the hub's `static_dir` at `dist/` and skip nginx entirely.
-hyphad serves a bundle from anywhere; it just doesn't own one.
+Two escape hatches when a web server is not available:
+
+- point the hub's `static_dir` at `dist/` — hyphad serves a bundle from anywhere,
+  it just doesn't own one. API and panel then share an origin.
+- run `deploy/proxy.mjs` (zero dependencies, one process, route map identical to
+  the nginx config) with `deploy/mycelium.service`. This is how the reference
+  deployment runs today:
+
+```sh
+npm run build
+PORT=5524 WAREHOUSE_URL=http://<warehouse>/p/<project>/<id>/api node deploy/proxy.mjs
+```
 
 ## The warehouse catalog
 
