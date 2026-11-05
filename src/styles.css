@@ -337,6 +337,10 @@ code,
 
 .host-list {
   overflow-y: auto;
+  /* overflow-y:auto silently makes the x axis auto too, so one over-wide child
+     turns the whole list into a horizontally scrollable strip with a scrollbar
+     nobody asked for. Children must fit instead. */
+  overflow-x: hidden;
   min-height: 0;
 }
 
@@ -345,7 +349,12 @@ code,
   /* Opening the detail panel makes the row tall; the controls must stay on the
      first line instead of floating to the vertical middle. */
   align-items: flex-start;
+  /* Wrap as a unit: the name block keeps a readable basis, so when the panel
+     cannot fit name + controls side by side the controls move to their own line
+     instead of squeezing the name to 90px and pushing bars out of the panel. */
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
@@ -378,17 +387,11 @@ code,
 
 .host-main {
   min-width: 0;
-  flex: 1;
-}
-
-@media (max-width: 1100px) {
-  .host {
-    flex-wrap: wrap;
-  }
-  .host-actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
+  flex: 1 1 190px;
+  /* The name, the meta line and the metric bars all shrink with the column. The
+     bug this fixes: actions were `flex: none` and grew to their content width,
+     leaving host-main ~90px and pushing the third metric bar out of the panel. */
+  overflow: hidden;
 }
 
 .host-name {
@@ -401,12 +404,17 @@ code,
 
 .host-meta {
   font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tags {
   display: flex;
   gap: 4px;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tag {
@@ -415,6 +423,11 @@ code,
   color: var(--fg-dim);
   border: 1px solid var(--border-bright);
   border-radius: 3px;
+  /* A long tag truncates instead of pushing the row wider than its panel. */
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── run ───────────────────────────────────────────────── */
@@ -596,9 +609,13 @@ code,
   display: flex;
   align-items: center;
   gap: 5px;
-  flex: none;
-  /* The tags input can grow; keep it from pushing the row wider than the panel. */
-  max-width: 55%;
+  /* Shrink before host-main does: the controls have a hard minimum (three
+     buttons and a chip), the name does not. */
+  flex: 0 1 auto;
+  min-width: 0;
+  /* Hugs the right edge on its own line, and stays right when it shares the
+     first line. */
+  margin-left: auto;
 }
 
 .tags {
@@ -791,29 +808,40 @@ code,
 
 .metric-bars {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin-top: 4px;
+  min-width: 0;
 }
 
 .metric {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  /* Grow to share the line, and wrap to a second line before the track becomes
+     too short to read as a bar. */
+  flex: 1 1 78px;
+  min-width: 0;
   font-family: var(--mono);
   font-size: 10.5px;
 }
 
 .metric-label {
+  flex: none;
   min-width: 26px;
 }
 
 .metric-track {
-  display: inline-block;
-  width: 46px;
+  flex: 1 1 auto;
+  min-width: 18px;
   height: 4px;
   border-radius: 2px;
   background: var(--border);
   overflow: hidden;
+}
+
+.metric-value {
+  flex: none;
 }
 
 .metric-fill {
@@ -1089,6 +1117,17 @@ button.host-name:hover {
 /* The dock floats over the last row of every view, so the views stop above it. */
 .app.has-page-menu main {
   padding-bottom: 88px;
+}
+
+/* Two columns need room for two columns. Below this the host list keeps its
+   width (it has to: rows are not designed for 200px) and the run panel is
+   squeezed to one word per line. Stack instead, and let the page scroll. */
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: minmax(240px, auto);
+    overflow-y: auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
