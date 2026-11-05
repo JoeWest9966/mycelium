@@ -58,9 +58,20 @@ tailnet first, or point `public_url` at something it can reach.
 
 ## Where things are
 
-The dock at the bottom switches pages (Fleet / Warehouse / Files / Install /
-Audit). The bar at the top is state you read — how many hosts, which version —
-plus the one thing that is page-independent: Refresh.
+The dock at the bottom switches pages: Fleet / Warehouse / Files / Keys / Audit.
+Each one is a real address — `/`, `/warehouse`, `/files`, `/keys`, `/audit` — so a
+page can be bookmarked, reloaded, linked to, opened in a new tab, and reached with
+the back button. The dock items are `<a href>`, which is what makes the middle
+mouse button work; only an unmodified left click is intercepted to switch pages
+without a reload (see `src/lib/routes.ts`).
+
+An address that matches no page shows "No such page" instead of quietly rendering
+Fleet. A saved link that silently lands somewhere else is a broken link nobody
+ever reports.
+
+The bar at the top is state you read — how many hosts, which version — plus the
+two page-independent actions: Refresh, and Install (which puts a one-shot install
+command on the clipboard).
 
 The dock moved down there because that is where a hand already is. It keeps the
 reference's behaviour: icons grow under the cursor, the label appears above them,

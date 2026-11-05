@@ -21,8 +21,7 @@ import { TerminalView } from './components/TerminalView'
 import PageMenu, { type PageMenuItem } from './components/PageMenu'
 import InstallCommandButton from './components/InstallCommandButton'
 import { AuditIcon, FilesIcon, FleetIcon, KeyIcon, WarehouseIcon } from './components/icons'
-
-type View = 'fleet' | 'warehouse' | 'files' | 'keys' | 'audit'
+import { PATHS, viewForPath, type View } from './lib/routes'
 
 /** The pages, in the order the dock shows them. */
 const VIEWS: { key: View; label: string; icon: React.ReactNode }[] = [
@@ -59,7 +58,10 @@ export default function App() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [runs, setRuns] = useState<Run[]>([])
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState<View>('fleet')
+  // null means the address in the bar is not a page we have. That is shown, not
+  // quietly redirected: a bookmarked link that silently lands somewhere else is
+  // a broken link nobody ever reports.
+  const [route, setRoute] = useState<View | null>(() => viewForPath(location.pathname))
   const [shellHost, setShellHost] = useState<Host | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -124,6 +126,28 @@ export default function App() {
 
   const toggleAll = () => {
     setSelected((prev) => (prev.size === hosts.length ? new Set() : new Set(hosts.map((h) => h.id))))
+  }
+
+  // Back and forward move between pages, because they are addresses now.
+  useEffect(() => {
+    const onPop = () => setRoute(viewForPath(location.pathname))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // One tab, several pages: the title says which one you are looking at.
+  useEffect(() => {
+    const label = VIEWS.find((v) => v.key === route)?.label
+    document.title = label ? `${label} · mycelium` : 'mycelium'
+  }, [route])
+
+  const go = (next: View) => {
+    if (next === route) return
+    // pushState, not a reload: the URL changes, the page does not blink, and a
+    // reload of the new URL lands on the same page because the server falls back
+    // to index.html for extensionless paths.
+    history.pushState({ view: next }, '', PATHS[next])
+    setRoute(next)
   }
 
   const notify = (message: string) => {
@@ -288,8 +312,9 @@ export default function App() {
     key: v.key,
     title: v.label,
     icon: v.icon,
-    active: view === v.key,
-    onClick: () => setView(v.key),
+    href: PATHS[v.key],
+    active: route === v.key,
+    onClick: () => go(v.key),
   }))
 
   return (
@@ -313,8 +338,25 @@ export default function App() {
         </div>
       </header>
 
-      <main className={view === 'fleet' ? 'layout' : 'layout single'}>
-        {view === 'fleet' && (
+      <main className={route === 'fleet' ? 'layout' : 'layout single'}>
+        {route === null && (
+          <section className="panel" aria-label="Not found">
+            <div className="panel-head">
+              <h2 className="panel-title">No such page</h2>
+            </div>
+            <div className="keys-body">
+              <p className="hint dim">
+                <code>{location.pathname}</code> is not one of the panel&apos;s pages.
+              </p>
+              <p>
+                <a className="btn btn-ghost" href="/">
+                  Back to Fleet
+                </a>
+              </p>
+            </div>
+          </section>
+        )}
+        {route === 'fleet' && (
           <>
             <HostList
               hosts={hosts}
@@ -334,7 +376,7 @@ export default function App() {
             />
           </>
         )}
-        {view === 'warehouse' && <WarehouseView
+        {route === 'warehouse' && <WarehouseView
             hosts={hosts}
             onInstalled={() => {
               // The satellite needs a beat to dial home; poll twice so the new
@@ -343,9 +385,9 @@ export default function App() {
               setTimeout(() => void refresh(), 2500)
             }}
           />}
-        {view === 'keys' && <KeysView />}
-        {view === 'files' && <FilesView hosts={hosts} selected={selected} />}
-        {view === 'audit' && <AuditView />}
+        {route === 'keys' && <KeysView />}
+        {route === 'files' && <FilesView hosts={hosts} selected={selected} />}
+        {route === 'audit' && <AuditView />}
       </main>
 
       <PageMenu items={pageMenu} />
