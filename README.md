@@ -56,6 +56,21 @@ one-shot token it just minted and stops before ssh — instead of spending a min
 of hanging curl on an install that was never possible. Join the target to the
 tailnet first, or point `public_url` at something it can reach.
 
+## Two bars, two jobs
+
+The header nav switches *pages* (Fleet / Warehouse / Files / Install / Audit).
+The dock at the bottom holds *what you can do on the page you are on* — it is a
+slot, not a navigation bar, and each view supplies its own list
+(`PageMenu` in `src/components/PageMenu.tsx`). A view that supplies nothing gets
+no dock and no reserved space, which is why only Fleet has one today.
+
+Named for its job rather than its position: it is a bottom dock now, and it would
+still be `PageMenu` if it moved. `BottomBar` would be a lie the day it did.
+
+The magnify-on-hover is ~30 lines of pointer math and a CSS variable, not a
+spring library. This panel has three runtime dependencies and no reason to add a
+fourth for an effect that is invisible below 24px.
+
 ## The contract, and why it is the whole design
 
 `src/api/schema.d.ts` is **generated** from the hub's OpenAPI file:
