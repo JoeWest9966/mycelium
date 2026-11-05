@@ -19,6 +19,7 @@ import http from 'node:http'
 import fs from 'node:fs'
 import net from 'node:net'
 import path from 'node:path'
+import { handleInstall } from './install.mjs'
 
 const PORT = Number(process.env.PORT ?? 5524)
 const DIST = process.env.DIST ?? './dist'
@@ -29,6 +30,16 @@ const HUB = {
 // Optional. Without it, /api/warehouse/* answers 501 with an explanation
 // instead of a confusing 404 from hyphad.
 const WAREHOUSE = process.env.WAREHOUSE_URL ?? ''
+// Where the credential actually comes from. The warehouse's secret endpoint is
+// bound to loopback on purpose, so it cannot be the same upstream the browser
+// reads: that one is behind a gateway. This is the box-local one, and it is the
+// only reason one-click install can exist without handing credentials to hyphad.
+const WAREHOUSE_LOCAL = process.env.WAREHOUSE_LOCAL ?? ''
+
+// The one panel route that is not a proxy: it fetches a credential, runs ssh and
+// streams the installer's output back. Handled here, before any upstream. The
+// browser never sees the secret.
+const INSTALL_PATH = '/api/warehouse/install'
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -155,6 +166,26 @@ function staticFile(req, res) {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x')
+  if (url.pathname === INSTALL_PATH) {
+    if (req.method !== 'POST') {
+      res.writeHead(405, { 'content-type': 'text/plain; charset=utf-8', allow: 'POST' })
+      res.end('use POST\n')
+      return
+    }
+    void handleInstall(req, res, {
+      hub: `http://${HUB.host}:${HUB.port}`,
+      warehouse: WAREHOUSE_LOCAL,
+      trustForwarded: true,
+    }).catch((err) => {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' })
+        res.end(`install failed: ${err.message}\n`)
+      } else {
+        res.end()
+      }
+    })
+    return
+  }
   if (upstreamFor(url.pathname)) proxy(req, res)
   else staticFile(req, res)
 })
@@ -190,4 +221,5 @@ server.listen(PORT, () => {
   console.log(`  dist      ${path.resolve(DIST)}`)
   console.log(`  api       ${HUB.host}:${HUB.port}`)
   console.log(`  warehouse ${WAREHOUSE || '(none — /api/warehouse/* will 501)'}`)
+  console.log(`  secrets   ${WAREHOUSE_LOCAL || '(none — one-click install will refuse)'}`)
 })

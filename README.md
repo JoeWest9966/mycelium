@@ -4,7 +4,7 @@ The panel for [hypha](https://github.com/JoeWest9966/hypha) — a separate
 repository, a separate deploy, a separate release cadence.
 
 ```
-browser ──► nginx ──┬─► mycelium (this repo, static build)
+browser ──► nginx ──┬─► mycelium (this repo, static build + one install route)
                     └─► hyphad   (the hub: /api, /agent, /install.sh, /dl)
 ```
 
@@ -20,6 +20,41 @@ picker. Then it doesn't.
 
 Splitting also settles the API surface while it is still small enough to settle.
 Fourteen paths is cheap to describe; forty is a negotiation.
+
+## One-click install, and where the credential lives
+
+The Warehouse tab lists the machines in the Nous catalog. `Install hypha` runs
+this, entirely on the panel's host:
+
+```
+warehouse /api/vps/<name>/secret   (loopback-only, needs X-NW-Reveal: 1)
+  -> one process's memory
+  -> a 0600 temp file (key) or SSHPASS in the child env (password, so it never
+     appears in `ps` like `sshpass -p` would)
+  -> one ssh that runs the hub's install command
+  -> unlink, on every path including the failures
+```
+
+`deploy/install.mjs` implements it and streams the installer's own output back
+over SSE; the browser never receives a secret and there is no endpoint that would
+hand one over. That is not squeamishness, it is blast radius: the hub runs
+arbitrary bash without authentication, and a hub holding vps root passwords
+turns "can run bash on enrolled machines" into "can root every machine in the
+catalog". The panel host is already the one box that can reach both the catalog
+and the targets.
+
+Deployment knobs:
+
+- `WAREHOUSE_URL` — what the browser reads the catalog through (a gateway is fine).
+- `WAREHOUSE_LOCAL` — the loopback API the secret comes from, e.g.
+  `http://127.0.0.1:8080`. Without it the button refuses and says why.
+
+One refusal is deliberate: **a tailnet-only hub cannot install a public machine**.
+The installer runs on the target and downloads the hub itself, so if the hub's
+address is `100.x`/`.ts.net` and the target is a public IP, the panel revokes the
+one-shot token it just minted and stops before ssh — instead of spending a minute
+of hanging curl on an install that was never possible. Join the target to the
+tailnet first, or point `public_url` at something it can reach.
 
 ## The contract, and why it is the whole design
 
