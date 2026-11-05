@@ -18,6 +18,8 @@ import KeysView from './components/KeysView'
 import AuditView from './components/AuditView'
 import FilesView from './components/FilesView'
 import { TerminalView } from './components/TerminalView'
+import PageMenu, { type PageMenuItem } from './components/PageMenu'
+import { CheckAllIcon, ClearSelectionIcon, RefreshIcon, TerminalIcon } from './components/icons'
 
 export type JobState = {
   jobId: string
@@ -267,8 +269,49 @@ export default function App() {
 
   const online = hosts.filter((h) => h.online).length
 
+  // The page menu holds what you can do *on this page*. Fleet is the only view
+  // that has one so far; the other four pass an empty list and the dock (and the
+  // space it reserves) disappears with it.
+  const allSelected = hosts.length > 0 && selected.size === hosts.length
+  const pageMenu: PageMenuItem[] =
+    view === 'fleet'
+      ? [
+          {
+            key: 'refresh',
+            group: 'fleet',
+            title: 'Refresh the fleet',
+            icon: <RefreshIcon />,
+            onClick: () => void refresh(),
+          },
+          {
+            key: 'select',
+            group: 'fleet',
+            title: allSelected ? 'Clear selection' : `Select all ${hosts.length} hosts`,
+            icon: allSelected ? <ClearSelectionIcon /> : <CheckAllIcon />,
+            onClick: toggleAll,
+            active: allSelected,
+            disabled: hosts.length === 0,
+          },
+          {
+            key: 'run',
+            group: 'run',
+            title: 'Run a command',
+            icon: <TerminalIcon />,
+            // The command box is the page's primary action, so the dock points at
+            // it rather than duplicating it: a second input down here would be a
+            // second place for the same text to live.
+            onClick: () => {
+              const input = document.querySelector<HTMLInputElement>('.command-input')
+              input?.focus()
+              input?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+            },
+            disabled: hosts.length === 0,
+          },
+        ]
+      : []
+
   return (
-    <div className="app">
+    <div className={`app${pageMenu.length > 0 ? ' has-page-menu' : ''}`}>
       <header className="topbar">
         <div className="topbar-left">
           <span className="wordmark">mycelium</span>
@@ -357,6 +400,8 @@ export default function App() {
         {view === 'files' && <FilesView hosts={hosts} selected={selected} />}
         {view === 'audit' && <AuditView />}
       </main>
+
+      <PageMenu items={pageMenu} />
 
       {shellHost && <TerminalView host={shellHost} onClose={() => setShellHost(null)} />}
       {toast && <div className="toast">{toast}</div>}
