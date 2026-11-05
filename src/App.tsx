@@ -344,7 +344,15 @@ export default function App() {
             />
           </>
         )}
-        {view === 'warehouse' && <WarehouseView hosts={hosts} />}
+        {view === 'warehouse' && <WarehouseView
+            hosts={hosts}
+            onInstalled={() => {
+              // The satellite needs a beat to dial home; poll twice so the new
+              // row appears without the operator hitting Refresh.
+              void refresh()
+              setTimeout(() => void refresh(), 2500)
+            }}
+          />}
         {view === 'keys' && <KeysView />}
         {view === 'files' && <FilesView hosts={hosts} selected={selected} />}
         {view === 'audit' && <AuditView />}

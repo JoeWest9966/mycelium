@@ -276,6 +276,82 @@ code,
   white-space: nowrap;
 }
 
+.wh-install {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.wh-install.done {
+  border-color: var(--ok, #3fb950);
+}
+
+.wh-install.error {
+  border-color: var(--danger, #f85149);
+}
+
+.wh-install-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  background: var(--bg-input);
+}
+
+/* .pill carries margin-left:auto globally; inside this row it would float the
+   status pill into the middle of the header. */
+.wh-install-head .pill {
+  margin-left: 0;
+}
+
+.wh-install-head .wh-install-meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wh-install-error {
+  flex: 1;
+  color: var(--danger, #f85149);
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wh-install-hint {
+  padding: 4px 8px 0;
+  font-size: 11px;
+}
+
+.wh-install-body {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.wh-install-body .err {
+  color: var(--danger, #f85149);
+}
+
+.wh-install-body .note {
+  color: var(--dim);
+}
+
+.wh-head .wh-install-btn {
+  margin-left: auto;
+}
+
 .wh-foot {
   display: flex;
   gap: 14px;
