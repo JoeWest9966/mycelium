@@ -19,6 +19,12 @@ export type PageMenuItem = {
   /** Tooltip and aria-label. One short sentence: this text has ~40px above an icon. */
   title: string
   icon: ReactNode
+  /**
+   * Real address of the page. Present means this item renders as a link, so the
+   * middle mouse button, ⌘-click and "copy link address" all behave the way a
+   * page switcher is expected to behave.
+   */
+  href?: string
   onClick: () => void
   /** Toggled state, for things like "select all" that have an off position. */
   active?: boolean
@@ -91,17 +97,37 @@ export default function PageMenu({ items }: { items: PageMenuItem[] }) {
                   else slots.current.delete(item.key)
                 }}
               >
-                <button
-                  type="button"
-                  className={`page-menu-item${item.active ? ' active' : ''}`}
-                  onClick={item.onClick}
-                  disabled={item.disabled}
-                  aria-label={item.title}
-                  aria-current={item.active ? 'page' : undefined}
-                >
-                  {item.icon}
-                  <span className="page-menu-tip">{item.title}</span>
-                </button>
+                {item.href ? (
+                  <a
+                    className={`page-menu-item${item.active ? ' active' : ''}`}
+                    href={item.href}
+                    onClick={(e) => {
+                      // Modified clicks keep their native meaning: open in a new
+                      // tab, new window, download. Only an ordinary left click is
+                      // ours to intercept.
+                      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+                      e.preventDefault()
+                      item.onClick()
+                    }}
+                    aria-label={item.title}
+                    aria-current={item.active ? 'page' : undefined}
+                  >
+                    {item.icon}
+                    <span className="page-menu-tip">{item.title}</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    className={`page-menu-item${item.active ? ' active' : ''}`}
+                    onClick={item.onClick}
+                    disabled={item.disabled}
+                    aria-label={item.title}
+                    aria-current={item.active ? 'page' : undefined}
+                  >
+                    {item.icon}
+                    <span className="page-menu-tip">{item.title}</span>
+                  </button>
+                )}
               </div>
             </div>
           )
