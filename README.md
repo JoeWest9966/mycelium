@@ -56,6 +56,23 @@ one-shot token it just minted and stops before ssh — instead of spending a min
 of hanging curl on an install that was never possible. Join the target to the
 tailnet first, or point `public_url` at something it can reach.
 
+## Where things are
+
+The dock at the bottom switches pages (Fleet / Warehouse / Files / Install /
+Audit). The bar at the top is state you read — how many hosts, which version —
+plus the one thing that is page-independent: Refresh.
+
+The dock moved down there because that is where a hand already is. It keeps the
+reference's behaviour: icons grow under the cursor, the label appears above them,
+and the current page stays visibly lit.
+
+`PageMenu` is named for its job, not its position — it is a bottom dock today and
+would still be called that if it moved. It is a slot: the caller hands it a list,
+the component draws the dock. The magnification is one pointer-distance curve and
+a CSS variable, not a spring library; at 20px icons the difference is invisible
+and this panel's dependency list stays at three. `prefers-reduced-motion` turns it
+off.
+
 ## The contract, and why it is the whole design
 
 `src/api/schema.d.ts` is **generated** from the hub's OpenAPI file:

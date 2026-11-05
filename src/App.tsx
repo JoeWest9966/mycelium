@@ -18,6 +18,19 @@ import KeysView from './components/KeysView'
 import AuditView from './components/AuditView'
 import FilesView from './components/FilesView'
 import { TerminalView } from './components/TerminalView'
+import PageMenu, { type PageMenuItem } from './components/PageMenu'
+import { AuditIcon, FilesIcon, FleetIcon, KeyIcon, WarehouseIcon } from './components/icons'
+
+type View = 'fleet' | 'warehouse' | 'files' | 'keys' | 'audit'
+
+/** The pages, in the order the dock shows them. */
+const VIEWS: { key: View; label: string; icon: React.ReactNode }[] = [
+  { key: 'fleet', label: 'Fleet', icon: <FleetIcon /> },
+  { key: 'warehouse', label: 'Warehouse', icon: <WarehouseIcon /> },
+  { key: 'files', label: 'Files', icon: <FilesIcon /> },
+  { key: 'keys', label: 'Install', icon: <KeyIcon /> },
+  { key: 'audit', label: 'Audit', icon: <AuditIcon /> },
+]
 
 export type JobState = {
   jobId: string
@@ -45,7 +58,7 @@ export default function App() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [runs, setRuns] = useState<Run[]>([])
   const [busy, setBusy] = useState(false)
-  const [view, setView] = useState<'fleet' | 'warehouse' | 'keys' | 'files' | 'audit'>('fleet')
+  const [view, setView] = useState<View>('fleet')
   const [shellHost, setShellHost] = useState<Host | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -267,8 +280,19 @@ export default function App() {
 
   const online = hosts.filter((h) => h.online).length
 
+  // The page menu is the page switcher. It moved down here because the top of the
+  // window is for state you read (fleet counts, versions), not for things you
+  // click every minute.
+  const pageMenu: PageMenuItem[] = VIEWS.map((v) => ({
+    key: v.key,
+    title: v.label,
+    icon: v.icon,
+    active: view === v.key,
+    onClick: () => setView(v.key),
+  }))
+
   return (
-    <div className="app">
+    <div className={`app${pageMenu.length > 0 ? ' has-page-menu' : ''}`}>
       <header className="topbar">
         <div className="topbar-left">
           <span className="wordmark">mycelium</span>
@@ -277,43 +301,6 @@ export default function App() {
           </span>
         </div>
         <div className="topbar-right">
-          <nav className="nav" aria-label="View">
-            <button
-              className={`nav-btn${view === 'fleet' ? ' active' : ''}`}
-              aria-current={view === 'fleet' ? 'page' : undefined}
-              onClick={() => setView('fleet')}
-            >
-              Fleet
-            </button>
-            <button
-              className={`nav-btn${view === 'warehouse' ? ' active' : ''}`}
-              aria-current={view === 'warehouse' ? 'page' : undefined}
-              onClick={() => setView('warehouse')}
-            >
-              Warehouse
-            </button>
-            <button
-              className={`nav-btn${view === 'files' ? ' active' : ''}`}
-              aria-current={view === 'files' ? 'page' : undefined}
-              onClick={() => setView('files')}
-            >
-              Files
-            </button>
-            <button
-              className={`nav-btn${view === 'keys' ? ' active' : ''}`}
-              aria-current={view === 'keys' ? 'page' : undefined}
-              onClick={() => setView('keys')}
-            >
-              Install
-            </button>
-            <button
-              className={`nav-btn${view === 'audit' ? ' active' : ''}`}
-              aria-current={view === 'audit' ? 'page' : undefined}
-              onClick={() => setView('audit')}
-            >
-              Audit
-            </button>
-          </nav>
           <span className="dim mono">
             hypha {meta.version} · api v{meta.api_version}
           </span>
@@ -357,6 +344,8 @@ export default function App() {
         {view === 'files' && <FilesView hosts={hosts} selected={selected} />}
         {view === 'audit' && <AuditView />}
       </main>
+
+      <PageMenu items={pageMenu} />
 
       {shellHost && <TerminalView host={shellHost} onClose={() => setShellHost(null)} />}
       {toast && <div className="toast">{toast}</div>}
