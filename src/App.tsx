@@ -19,6 +19,7 @@ import AuditView from './components/AuditView'
 import FilesView from './components/FilesView'
 import { TerminalView } from './components/TerminalView'
 import PageMenu, { type PageMenuItem } from './components/PageMenu'
+import InstallCommandButton from './components/InstallCommandButton'
 import { AuditIcon, FilesIcon, FleetIcon, KeyIcon, WarehouseIcon } from './components/icons'
 
 type View = 'fleet' | 'warehouse' | 'files' | 'keys' | 'audit'
@@ -28,7 +29,7 @@ const VIEWS: { key: View; label: string; icon: React.ReactNode }[] = [
   { key: 'fleet', label: 'Fleet', icon: <FleetIcon /> },
   { key: 'warehouse', label: 'Warehouse', icon: <WarehouseIcon /> },
   { key: 'files', label: 'Files', icon: <FilesIcon /> },
-  { key: 'keys', label: 'Install', icon: <KeyIcon /> },
+  { key: 'keys', label: 'Keys', icon: <KeyIcon /> },
   { key: 'audit', label: 'Audit', icon: <AuditIcon /> },
 ]
 
@@ -307,6 +308,8 @@ export default function App() {
           <button className="btn btn-ghost" onClick={() => void refresh()}>
             Refresh
           </button>
+          {/* The install command is a one-click action, not a page. */}
+          <InstallCommandButton onNotify={notify} />
         </div>
       </header>
 
