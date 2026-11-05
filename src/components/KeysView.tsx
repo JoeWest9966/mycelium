@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createEnrollToken, listEnrollTokens, revokeEnrollToken } from '../api/client'
+import { copyFailureReason, copyText } from '../lib/clipboard'
 import type { EnrollTokenInfo } from '../api/types'
 
 type Mode = 'once' | 'reusable'
@@ -64,13 +65,13 @@ export default function KeysView() {
   }
 
   const copy = async (text: string, key: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(key)
-      setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500)
-    } catch {
-      setError('clipboard blocked by the browser; select the command manually')
+    if (!(await copyText(text))) {
+      setError(copyFailureReason())
+      return
     }
+    setError(null)
+    setCopied(key)
+    setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500)
   }
 
   const dead = (k: EnrollTokenInfo) => k.revoked || k.expires_at * 1000 < Date.now()

@@ -5,6 +5,7 @@ import {
   type WarehousePayload,
 } from '../api/warehouse'
 import type { Host } from '../api/types'
+import { copyFailureReason, copyText } from '../lib/clipboard'
 
 type Props = {
   hosts: Host[]
@@ -42,13 +43,13 @@ export default function WarehouseView({ hosts }: Props) {
   }, [load])
 
   const copy = async (cmd: string, name: string) => {
-    try {
-      await navigator.clipboard.writeText(cmd)
-      setCopied(name)
-      setTimeout(() => setCopied((c) => (c === name ? null : c)), 1500)
-    } catch {
-      setError('clipboard blocked by the browser; select the command manually')
+    if (!(await copyText(cmd))) {
+      setError(copyFailureReason())
+      return
     }
+    setError(null)
+    setCopied(name)
+    setTimeout(() => setCopied((c) => (c === name ? null : c)), 1500)
   }
 
   const machines = payload?.data.machines ?? []

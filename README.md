@@ -51,6 +51,10 @@ Three hazards the types cannot catch, all encoded in `src/api/client.ts`:
 - **The PTY direction flips the encoding.** `TermIn.input.data` is plain UTF-8
   keystrokes; `TermOut.output.data` is base64 of raw terminal bytes. Output goes
   into xterm as a byte array, never as a decoded string.
+- **The clipboard API does not exist over plain http.** `navigator.clipboard` is
+  gated on a secure context, and this panel runs on tailnet http. Every copy
+  button goes through `src/lib/clipboard.ts`, which falls back to the
+  `execCommand` path that still works there. Blaming the browser was a bug.
 - **A shell is a session, not a socket.** `POST /api/pty` allocates it and
   `GET /api/pty?pty_id=` attaches. Closing the socket detaches; attaching again
   replays the scrollback. Treating the WebSocket as the shell would kill `vim`
